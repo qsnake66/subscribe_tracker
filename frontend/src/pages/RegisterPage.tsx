@@ -4,10 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
-import { Lock, Mail, ArrowRight } from 'lucide-react';
-import { loginUser } from '../lib/api';
+import { Lock, Mail, User, ArrowRight } from 'lucide-react';
+import { registerUser } from '../lib/api';
 
-const loginSchema = z.object({
+const registerSchema = z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters'),
     email: z.string().email('Please enter a valid email address'),
     password: z
         .string()
@@ -15,11 +16,15 @@ const loginSchema = z.object({
         .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
         .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
         .regex(/[0-9]/, 'Password must contain at least one number'),
+    confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
-export default function LoginPage() {
+export default function RegisterPage() {
     const navigate = useNavigate();
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -27,18 +32,18 @@ export default function LoginPage() {
         register,
         handleSubmit,
         formState: { errors },
-    } = useForm<LoginFormData>({
-        resolver: zodResolver(loginSchema),
+    } = useForm<RegisterFormData>({
+        resolver: zodResolver(registerSchema),
     });
 
-    const onSubmit = async (data: LoginFormData) => {
+    const onSubmit = async (data: RegisterFormData) => {
         setError('');
         setLoading(true);
         try {
-            await loginUser(data.email, data.password);
+            await registerUser(data.name, data.email, data.password);
             navigate('/app');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Не удалось войти');
+            setError(err instanceof Error ? err.message : 'Не удалось создать аккаунт');
         } finally {
             setLoading(false);
         }
@@ -46,16 +51,16 @@ export default function LoginPage() {
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-            <div className="absolute top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-accent/20 blur-[100px]" />
-            <div className="absolute bottom-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-secondary/20 blur-[100px]" />
+            <div className="absolute top-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-primary/10 blur-[100px]" />
+            <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-accent/20 blur-[100px]" />
 
             <div className="w-full max-w-md space-y-8 relative z-10 bg-surface/50 backdrop-blur-xl p-8 rounded-2xl border border-white/10 shadow-2xl">
                 <div className="text-center">
                     <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">
-                        Welcome Back
+                        Create Account
                     </h2>
                     <p className="mt-2 text-sm text-gray-400">
-                        Sign in to track your subscriptions
+                        Start tracking all your subscriptions in one place
                     </p>
                 </div>
 
@@ -67,6 +72,31 @@ export default function LoginPage() {
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
                     <div className="space-y-4">
+                        <div>
+                            <label htmlFor="name" className="sr-only">
+                                Full Name
+                            </label>
+                            <div className="relative">
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <User className="h-5 w-5 text-gray-500" aria-hidden="true" />
+                                </div>
+                                <input
+                                    id="name"
+                                    type="text"
+                                    autoComplete="name"
+                                    className={cn(
+                                        "block w-full rounded-lg border border-white/10 bg-background/50 py-3 pl-10 pr-3 text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm transition-all duration-200",
+                                        errors.name && "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    )}
+                                    placeholder="Full Name"
+                                    {...register('name')}
+                                />
+                            </div>
+                            {errors.name && (
+                                <p className="mt-1 text-xs text-red-500 pl-1">{errors.name.message}</p>
+                            )}
+                        </div>
+
                         <div>
                             <label htmlFor="email" className="sr-only">
                                 Email address
@@ -103,7 +133,7 @@ export default function LoginPage() {
                                 <input
                                     id="password"
                                     type="password"
-                                    autoComplete="current-password"
+                                    autoComplete="new-password"
                                     className={cn(
                                         "block w-full rounded-lg border border-white/10 bg-background/50 py-3 pl-10 pr-3 text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm transition-all duration-200",
                                         errors.password && "border-red-500 focus:border-red-500 focus:ring-red-500"
@@ -116,13 +146,30 @@ export default function LoginPage() {
                                 <p className="mt-1 text-xs text-red-500 pl-1">{errors.password.message}</p>
                             )}
                         </div>
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                        <div className="text-sm">
-                            <a href="#" className="font-medium text-primary hover:text-primary/80 transition-colors">
-                                Forgot your password?
-                            </a>
+                        <div>
+                            <label htmlFor="confirmPassword" className="sr-only">
+                                Confirm Password
+                            </label>
+                            <div className="relative">
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <Lock className="h-5 w-5 text-gray-500" aria-hidden="true" />
+                                </div>
+                                <input
+                                    id="confirmPassword"
+                                    type="password"
+                                    autoComplete="new-password"
+                                    className={cn(
+                                        "block w-full rounded-lg border border-white/10 bg-background/50 py-3 pl-10 pr-3 text-white placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm transition-all duration-200",
+                                        errors.confirmPassword && "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                    )}
+                                    placeholder="Confirm Password"
+                                    {...register('confirmPassword')}
+                                />
+                            </div>
+                            {errors.confirmPassword && (
+                                <p className="mt-1 text-xs text-red-500 pl-1">{errors.confirmPassword.message}</p>
+                            )}
                         </div>
                     </div>
 
@@ -132,7 +179,7 @@ export default function LoginPage() {
                             disabled={loading}
                             className="group relative flex w-full justify-center rounded-lg bg-primary py-3 px-4 text-sm font-semibold text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            {loading ? 'Signing in...' : 'Sign in'}
+                            {loading ? 'Creating...' : 'create account'}
                             <span className="absolute inset-y-0 right-0 flex items-center pr-3">
                                 <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white transition-colors" />
                             </span>
@@ -142,9 +189,9 @@ export default function LoginPage() {
 
                 <div className="text-center text-sm">
                     <p className="text-gray-400">
-                        Don't have an account?{' '}
-                        <Link to="/register" className="font-semibold text-primary hover:text-primary/80 transition-colors">
-                            Registration
+                        Already have an account?{' '}
+                        <Link to="/" className="font-semibold text-primary hover:text-primary/80 transition-colors">
+                            Sign in
                         </Link>
                     </p>
                 </div>
