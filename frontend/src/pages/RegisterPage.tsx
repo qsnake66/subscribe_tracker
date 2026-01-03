@@ -1,10 +1,11 @@
-import React from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { Lock, Mail, User, ArrowRight } from 'lucide-react';
+import { registerUser } from '../lib/api';
 
 const registerSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -24,6 +25,9 @@ const registerSchema = z.object({
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
+    const navigate = useNavigate();
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const {
         register,
         handleSubmit,
@@ -32,14 +36,21 @@ export default function RegisterPage() {
         resolver: zodResolver(registerSchema),
     });
 
-    const onSubmit = (data: RegisterFormData) => {
-        console.log('Register data:', data);
-        // TODO: Implement backend integration
+    const onSubmit = async (data: RegisterFormData) => {
+        setError('');
+        setLoading(true);
+        try {
+            await registerUser(data.name, data.email, data.password);
+            navigate('/app');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Не удалось создать аккаунт');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-            {/* Decorative background elements */}
             <div className="absolute top-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-primary/10 blur-[100px]" />
             <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-accent/20 blur-[100px]" />
 
@@ -52,6 +63,12 @@ export default function RegisterPage() {
                         Start tracking all your subscriptions in one place
                     </p>
                 </div>
+
+                {error && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                        {error}
+                    </div>
+                )}
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
                     <div className="space-y-4">
@@ -159,9 +176,10 @@ export default function RegisterPage() {
                     <div>
                         <button
                             type="submit"
-                            className="group relative flex w-full justify-center rounded-lg bg-primary py-3 px-4 text-sm font-semibold text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200"
+                            disabled={loading}
+                            className="group relative flex w-full justify-center rounded-lg bg-primary py-3 px-4 text-sm font-semibold text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            create account
+                            {loading ? 'Creating...' : 'create account'}
                             <span className="absolute inset-y-0 right-0 flex items-center pr-3">
                                 <ArrowRight className="h-4 w-4 text-white/50 group-hover:text-white transition-colors" />
                             </span>
